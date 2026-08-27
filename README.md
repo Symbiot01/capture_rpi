@@ -7,9 +7,11 @@ No HID. No `/ws/device`. Video never shares sockets with the ESP32 path.
 |-------|------|--------|
 | **A** | Detect IMX708 + still JPEG | Run on Pi (scripts below) |
 | **B** | Local 720p30 H.264 encode | Run on Pi |
-| **C** | WHIP → `mediarelay…/cam/whip` | Next |
-| **D** | `still_server.py` token HTTP | Stub in repo |
+| **C** | Publish live video to MediaMTX path `cam` | **SRT ingest** (see `docs/SLICE_C_SRT.md`) — stock ffmpeg cannot WHIP |
+| **D** | `still_server.py` token HTTP | Stub / running on Pi |
 | **E/F** | Node `/api/photo` + Focus WHEP | HID repo |
+
+**Why not WHIP from Pi yet?** Distro `ffmpeg` failed as a WHIP client (`-f webrtc`); Stream-test on `/desk` already proved VPS 443+8189. We use **SRT → MediaMTX → WHEP** until a real WHIP client is on the Pi. Details: [`docs/SLICE_C_SRT.md`](docs/SLICE_C_SRT.md).
 
 Defaults: **1280×720 @ 30**. Not 1080 until 720 is stable.
 
