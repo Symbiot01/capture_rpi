@@ -2,8 +2,10 @@
 """
 Slice D — local still capture HTTP (token required).
 
-Bind to STILL_HOST (default 127.0.0.1). Relay calls this with CAPTURE_TOKEN.
-Not for public exposure without VPN/tunnel.
+Optional LAN/debug only. Production Slice E uses scripts/capture_ws.py
+(outbound WSS to HID /ws/capture) — no inbound CAPTURE_URL.
+
+Bind to STILL_HOST (default 127.0.0.1). Not for public exposure.
 
 Env:
   STILL_HOST, STILL_PORT, CAPTURE_TOKEN
