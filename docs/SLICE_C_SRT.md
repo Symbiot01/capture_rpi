@@ -63,6 +63,42 @@ RTSP was considered only as a quick hack, not the preferred design.
 
 Tradeoff: open **UDP 8890** on GCP + publish `8890:8890/udp` on the MediaMTX container (enable `srt: yes` in `mediamtx.yml`). Prefer tightening auth later; treat public SRT like temporary ingest, not a permanent open camera API.
 
+## Campus / institute WiFi blocks SRT (client-side)
+
+**Symptom:** After MediaMTX is correctly deployed (`srt: yes`, host `8890/udp`, GCP `allow-testin-srt`), ffmpeg from a laptop on institute WiFi still fails:
+
+```text
+Connection to srt://mediarelay…:8890?streamid=publish:cam… failed: Input/output error
+```
+
+**Not a VPS bug** when:
+
+| Check | Expected when VPS is OK |
+|-------|-------------------------|
+| VPS `ss -lun \| grep 8890` | Listening `0.0.0.0:8890` |
+| GCP firewall | `allow-testin-srt` → UDP 8890 → tag `testin` |
+| HTTPS `/cam` from laptop | **200** (TCP 443 allowed) |
+| SRT from same laptop | **I/O error** |
+
+**Root cause (confirmed 2026-08-28):** institute / campus egress firewall allows **HTTPS (TCP 443)** to `mediarelay` but blocks outbound **UDP 8890** (SRT). Same failure to raw IP `34.47.241.10:8890` → not DNS.
+
+**Evidence**
+
+| Path | Public IP (example) | HTTPS `/cam` | SRT `:8890` |
+|------|---------------------|--------------|-------------|
+| Institute WiFi direct | `203.110.247.87` | OK | **Fail** |
+| Same laptop + Cloudflare WARP (`warp-cli connect`) | WARP egress | OK | **OK** |
+
+WARP tunnels UDP past the campus filter; disconnecting WARP reproduces the failure immediately.
+
+**Workarounds (publisher side)**
+
+1. `warp-cli connect` (or another VPN) when publishing SRT from campus WiFi.
+2. Use a network that allows UDP 8890 (home, phone hotspot, non-filtered lab).
+3. Publish from the **Pi** on an uplink that is not filtered the same way (do not assume campus WiFi = Pi uplink).
+
+**Do not confuse with:** Coolify deploy missing `srt: yes` / compose `8890:8890/udp` (VPS has no listener). That also yields I/O error — check `ss` / GCP first, then campus egress.
+
 ## Longer-term (optional)
 
 Revisit **WHIP** with MediaMTX-on-Pi or a WHIP-capable client so ingest uses only **443 + 8189** again (same door as Stream-test, no 8890).

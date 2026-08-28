@@ -84,6 +84,21 @@ Watch for **10 s** with no libcamera buffer errors. Serve/download `/tmp/test.h2
 
 ---
 
+## 3b. Slice C — SRT live to `/cam`
+
+```bash
+cd ~/capture
+# .env should include SRT_URL=srt://mediarelay…:8890?streamid=publish:cam&pkt_size=1316
+./scripts/publish_whip.sh
+# or: sudo systemctl enable --now whip.service  (see systemd/whip.service.example)
+```
+
+Open `https://mediarelay.sahilpatel.online/cam/`. Campus Wi‑Fi often blocks UDP 8890 — use WARP/VPN or an unfiltered uplink (see `docs/SLICE_C_SRT.md`).
+
+**Conflict:** while `rpicam-vid` is running, a bare `rpicam-still` fails (camera busy). Slice E (`camera_still.py`) **briefly stops `whip.service`**, captures, then restarts it. Install passwordless sudo for that unit only — see `sudoers/capture-whip.sudoers`. Live `/cam` will glitch for ~1–3 s per Snapshot.
+
+---
+
 ## 4. Slice E — outbound WS photo
 
 1. On Coolify HID: set `CAPTURE_TOKEN` (same value as Pi). Remove any old `CAPTURE_URL`. Redeploy HID.
@@ -99,9 +114,17 @@ python3 scripts/capture_ws.py
 
 3. Systemd (optional): copy `systemd/capture-ws.service.example`, adjust paths/user, `systemctl enable --now`.
 
-4. Smoke: log into operator UI, then  
-   `curl -b 'op_session=…' -o snap.jpg -X POST https://webrelay…/api/photo`  
-   Or check `GET /api/status` → `captureConnected: true`.
+4. Smoke: log into operator UI → Capture Online → Snapshot → lightbox JPEG.  
+   Live `/cam` may drop for ~1–3 s while whip is restarted around the still.
+
+**Pi sudo (required for Snapshot while whip is running):**
+
+```bash
+sudo cp ~/capture/sudoers/capture-whip.sudoers /etc/sudoers.d/capture-whip
+sudo chmod 440 /etc/sudoers.d/capture-whip
+sudo visudo -cf /etc/sudoers.d/capture-whip
+# then: sudo systemctl restart capture-ws.service
+```
 
 ---
 
@@ -116,7 +139,7 @@ capture/
   scripts/
     slice_a_detect.sh
     slice_b_encode.sh
-    publish_whip.sh        # Slice C placeholder
+    publish_whip.sh        # Slice C SRT → MediaMTX /cam
     capture_ws.py          # Slice E outbound WS agent
   systemd/
     still.service.example

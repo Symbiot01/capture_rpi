@@ -5,19 +5,25 @@ Slice D — local still capture HTTP (token required).
 Optional LAN/debug only. Production Slice E uses scripts/capture_ws.py
 (outbound WSS to HID /ws/capture) — no inbound CAPTURE_URL.
 
-Bind to STILL_HOST (default 127.0.0.1). Not for public exposure.
+Uses camera_still.capture_jpeg (may briefly stop whip.service).
 
 Env:
   STILL_HOST, STILL_PORT, CAPTURE_TOKEN
+  CAPTURE_RELEASE_WHIP, WHIP_SERVICE (see camera_still.py)
 """
 
 from __future__ import annotations
 
 import os
-import subprocess
-import tempfile
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+ROOT = os.path.abspath(os.path.dirname(__file__))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from camera_still import capture_jpeg  # noqa: E402
 
 HOST = os.environ.get("STILL_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STILL_PORT", "8091"))
@@ -36,37 +42,10 @@ def _authorized(handler: BaseHTTPRequestHandler) -> bool:
     return handler.headers.get("X-Capture-Token", "") == TOKEN
 
 
-def _capture_jpeg() -> bytes:
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-        path = tmp.name
-    try:
-        cmd = None
-        for binary in ("rpicam-still", "libcamera-still"):
-            from shutil import which
-
-            if which(binary):
-                cmd = [binary, "-n", "-o", path]
-                break
-        if not cmd:
-            raise RuntimeError("rpicam-still / libcamera-still not found")
-        subprocess.run(cmd, check=True, capture_output=True, timeout=15)
-        with open(path, "rb") as f:
-            data = f.read()
-        if not data:
-            raise RuntimeError("empty JPEG")
-        return data
-    finally:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
-
-
 class StillHandler(BaseHTTPRequestHandler):
     server_version = "hid-capture-still/0.1"
 
     def log_message(self, fmt: str, *args) -> None:
-        # Avoid logging tokens; path only.
         sys_stderr = __import__("sys").stderr
         print("%s - %s" % (self.address_string(), fmt % args), file=sys_stderr)
 
@@ -97,8 +76,8 @@ class StillHandler(BaseHTTPRequestHandler):
             self.send_error(429, "rate limited")
             return
         try:
-            jpeg = _capture_jpeg()
-        except Exception as exc:  # noqa: BLE001 — return error to caller
+            jpeg = capture_jpeg()
+        except Exception as exc:  # noqa: BLE001
             self.send_error(500, str(exc)[:200])
             return
         _last_capture = now
